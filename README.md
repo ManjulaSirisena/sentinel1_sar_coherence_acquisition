@@ -2,7 +2,7 @@
 
 A Python workflow for searching Sentinel-1A SLC scenes via the [ASF Search API](https://docs.asf.alaska.edu/api/keywords/) and submitting consecutive-pair InSAR jobs to [HyP3](https://hyp3-docs.asf.alaska.edu/) for SAR coherence processing.
 
-Developed as part of an MSc research project on Sentinel-1 SAR coherence decay modelling for surface disturbance characterisation in gem mining terrain, Ratnapura District, Sri Lanka.
+Developed as part of an MSc research project on Sentinel-1 SAR coherence decay modelling.
 
 ---
 
