@@ -1,15 +1,54 @@
 # SAR Coherence Data Acquisition Workflow
 
-A Python workflow for searching Sentinel-1A SLC scenes via the [ASF Search API](https://docs.asf.alaska.edu/api/keywords/) and submitting consecutive-pair InSAR jobs to [HyP3](https://hyp3-docs.asf.alaska.edu/) for SAR coherence processing.
+A Python workflow for automating Sentinel-1 SAR coherence data acquisition using the ASF Search API and ASF HyP3 processing services.
 
-Developed as part of an MSc research project on Sentinel-1 SAR coherence decay modelling.
+The workflow searches for Sentinel-1 IW SLC scenes over a user-defined area of interest, submits consecutive-pair InSAR coherence processing jobs to HyP3, monitors job status, and downloads the completed products. It was developed to support an MSc research project investigating Sentinel-1 SAR coherence decay modelling for slope disturbance assessment.
+
+---
+
+## Why this workflow?
+
+Large multi-temporal SAR studies often require the submission and management of dozens of InSAR processing jobs. Performing these tasks manually through the HyP3 web interface can be repetitive, time-consuming, and prone to error.
+
+This workflow automates the complete data acquisition stage by:
+
+- Searching Sentinel-1 IW SLC scenes within a specified area and date range
+- Creating an ordered scene list for processing
+- Submitting consecutive-pair InSAR jobs to HyP3
+- Monitoring processing status
+- Downloading completed coherence products automatically
+
+The workflow is intended as a reproducible research tool and serves as the data acquisition component of a larger SAR coherence analysis framework.
+
+---
+
+## Workflow
+
+```
+        ASF Search API
+              │
+              ▼
+      Search Sentinel-1 SLC scenes
+              │
+              ▼
+      Generate ordered scene list
+              │
+              ▼
+ Submit consecutive-pair HyP3 jobs
+              │
+              ▼
+     Monitor processing status
+              │
+              ▼
+ Download completed InSAR products
+```
 
 ---
 
 ## Requirements
 
-- Python ≥ 3.8
-- A [NASA Earthdata](https://urs.earthdata.nasa.gov/) account (used for both ASF search and HyP3 authentication)
+- Python 3.8 or later
+- A NASA Earthdata account (used for both ASF Search and HyP3 authentication)
 
 Install dependencies:
 
@@ -21,107 +60,139 @@ pip install -r requirements.txt
 
 ## Configuration
 
-Edit the `CONFIG` block at the top of `sar_coherence_acquisition.py`:
+Edit the `CONFIG` block at the beginning of `sar_coherence_acquisition.py`.
 
 | Parameter | Description |
-|---|---|
+|------------|-------------|
 | `AOI_WKT` | Area of interest as a WKT polygon (EPSG:4326) |
 | `START_DATE` / `END_DATE` | Temporal search window |
-| `SCENE_LIST_PATH` | Path to write/read the scene list file |
-| `DOWNLOAD_DIR` | Directory for downloaded InSAR products |
-| `INSAR_*` | HyP3 InSAR processing options (looks, phase filter, etc.) |
-| `DOWNLOAD_JOB_SLICE` | `slice(start, end)` of succeeded jobs to download, or `None` for all |
+| `SCENE_LIST_PATH` | Path to save or read the ordered scene list |
+| `DOWNLOAD_DIR` | Output directory for downloaded HyP3 products |
+| `INSAR_*` | HyP3 InSAR processing parameters (looks, filtering, etc.) |
+| `DOWNLOAD_JOB_SLICE` | Download a subset of completed jobs (`slice(start, end)`) or `None` for all |
 
 ---
 
-## Credentials
+## Authentication
 
-Credentials are never hard-coded. Set them as environment variables before running:
+Credentials are never stored within the source code.
+
+Set them as environment variables:
 
 ```bash
 export EARTHDATA_USERNAME=your_username
 export EARTHDATA_PASSWORD=your_password
 ```
 
-Or create a `.env` file (excluded from version control by `.gitignore`) and source it:
+Alternatively, create a local `.env` file (excluded via `.gitignore`):
 
 ```bash
-# .env
 export EARTHDATA_USERNAME=your_username
 export EARTHDATA_PASSWORD=your_password
 ```
+
+Then load it before execution:
 
 ```bash
 source .env
 ```
 
-If environment variables are not set, the script will prompt interactively.
+If no credentials are found, the script prompts for them interactively.
 
 ---
 
 ## Usage
 
-The workflow is split into four sequential stages.
+The workflow consists of four sequential stages.
 
 ### 1. Search
 
-Search the ASF catalogue and write matching scene names to `slc_scenes.txt`:
+Search the ASF catalogue and create an ordered Sentinel-1 scene list.
 
 ```bash
 python sar_coherence_acquisition.py --stage search
 ```
 
+---
+
 ### 2. Submit
 
-Submit consecutive-pair InSAR jobs to HyP3:
+Submit consecutive-pair InSAR coherence processing jobs to HyP3.
 
 ```bash
 python sar_coherence_acquisition.py --stage submit
 ```
 
-Each pair consists of scene `i` and scene `i+1` in the ordered scene list. Adjust the pairing logic in `submit_jobs()` if a different temporal baseline strategy is required.
+Each processing pair consists of scene *i* and scene *i + 1* in the ordered scene list.
+
+The pairing strategy can be modified within `submit_jobs()` to support alternative temporal baseline selection methods.
+
+---
 
 ### 3. Check
 
-Report the status of submitted jobs:
+Display the processing status of submitted HyP3 jobs.
 
 ```bash
 python sar_coherence_acquisition.py --stage check
 ```
 
-Re-run until all required jobs show `SUCCEEDED` before proceeding to download.
+Re-run this stage until the required jobs reach the `SUCCEEDED` state.
+
+---
 
 ### 4. Download
 
-Download all succeeded jobs to `DOWNLOAD_DIR`:
+Download all completed products.
 
 ```bash
 python sar_coherence_acquisition.py --stage download
 ```
 
+Downloaded products are written to `DOWNLOAD_DIR`.
+
 ---
 
 ## Output
 
-Each downloaded HyP3 InSAR product is a `.zip` archive containing (depending on job options):
+Each downloaded HyP3 product is provided as a compressed archive containing, depending on the selected processing options:
 
 - `*_corr.tif` — SAR coherence raster
 - `*_unw_phase.tif` — Unwrapped interferometric phase
-- `*_amp.tif` — Backscatter amplitude
+- `*_amp.tif` — SAR backscatter amplitude
 
 ---
 
-## Notes
+## Current limitations
 
-- This workflow targets **Sentinel-1A IW SLC** data with **VV+VH** polarisation and **ascending** flight direction. Modify `asf.search()` parameters in `search_scenes()` for other configurations.
-- HyP3 processing is subject to [usage quotas](https://hyp3-docs.asf.alaska.edu/using/quota/). Check your remaining quota before bulk submission.
-- `DOWNLOAD_JOB_SLICE` allows partial downloads (e.g., `slice(0, 50)`) without re-submitting jobs.
+The current implementation is designed specifically for the requirements of the associated MSc research project.
+
+- Sentinel-1A IW SLC imagery
+- Ascending orbit direction
+- VV + VH polarisation
+- Consecutive-pair processing strategy
+- Single user-defined area of interest
+
+These assumptions can be modified within the source code to support alternative acquisition strategies.
+
+---
+
+## Future improvements
+
+Potential future enhancements include:
+
+- Configurable temporal baseline selection
+- Support for Sentinel-1B acquisitions
+- Parallel job submission
+- Logging and progress reporting
+- Additional command-line configuration options
 
 ---
 
 ## Dependencies
 
 | Package | Purpose |
-|---|---|
-| [`asf_search`](https://github.com/asfadmin/Discovery-asf_search) | ASF catalogue search |
-| [`hyp3_sdk`](https://github.com/ASFHyP3/hyp3-sdk) | HyP3 job submission and download |
+|----------|---------|
+| `asf_search` | Sentinel-1 scene discovery using the ASF Search API |
+| `hyp3_sdk` | HyP3 job submission, monitoring, and product download |
+
